@@ -1,0 +1,44 @@
+name: queuelistlog
+
+on:
+  workflow_dispatch:        # Permite execução manual e via API (Vercel)
+
+# 🔥 TRAVA DE SEGURANÇA 🔥
+# Impede execução simultânea. Cria a fila inteligente.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15     # Segurança: mata o script se travar por mais de 15min
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Instalar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Restaurar hxh.json
+        shell: bash
+        run: |
+          echo "$GCP_JSON_BASE64" | base64 -d > hxh.json
+        env:
+          GCP_JSON_BASE64: ${{ secrets.GCP_JSON_BASE64 }}
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install playwright
+          playwright install chromium
+          # 👇 COMANDO NOVO IMPORTANTE: Instala libs do Linux para o Chrome rodar
+          playwright install-deps
+
+      - name: Executar o script
+        # 👇 Adicionado parâmetros de tela 1920x1080 para evitar erros visuais
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" python main.py
